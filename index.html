@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Le Trésor de La Buse</title>
+<link rel="stylesheet" href="style.css">
+
+</head>
+<body>
+
+<!--  écran d'accueil  -->
+<div id="title-screen">
+  <div class="title-stars" id="stars-canvas-wrap"></div>
+  <div class="title-skull">
+  <svg width="90" height="90" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 0 18px #c89600)">
+    <!----> crane -->
+    <ellipse cx="50" cy="40" rx="32" ry="28" fill="#f0e8c0" stroke="#c89600" stroke-width="2"/>
+    <rect x="30" y="60" width="40" height="18" rx="6" fill="#f0e8c0" stroke="#c89600" stroke-width="1.5"/>
+    <rect x="34" y="68" width="7" height="10" rx="2" fill="#1a0a00"/>
+    <rect x="46" y="68" width="7" height="10" rx="2" fill="#1a0a00"/>
+    <rect x="58" y="68" width="7" height="10" rx="2" fill="#1a0a00"/>
+    <ellipse cx="37" cy="38" rx="9" ry="10" fill="#1a0a00"/>
+    <ellipse cx="63" cy="38" rx="9" ry="10" fill="#1a0a00"/>
+    <path d="M46 52 L50 46 L54 52 Z" fill="#1a0a00"/>
+    <line x1="15" y1="82" x2="85" y2="98" stroke="#f0e8c0" stroke-width="7" stroke-linecap="round"/>
+    <line x1="85" y1="82" x2="15" y2="98" stroke="#f0e8c0" stroke-width="7" stroke-linecap="round"/>
+  </svg>
+</div>
+  <div class="title-main">Le Trésor de La Buse</div>
+  <div class="title-sub">Port Louis · Île Maurice · 1730</div>
+  <div class="title-scenario">
+    Tu es le petit-fils d'<em>Olivier Levasseur</em>, dit <em>« La Buse »</em>,
+    le corsaire le plus redouté des mers du Sud.<br><br>
+    Ton grand-père est célèbre pour ses actes de piraterie et, notamment,
+    pour le braquage légendaire du navire <em>« La Vierge du Cap »</em>.
+    Son trésor inestimable, estimé à des millions de livres larzaquois
+    est caché quelque part à <em>Port Louis</em>.<br><br>
+    Avant d'être pendu, La Buse jeta un cryptogramme à la foule :
+    <em>« Qui peut comprendre, comprendra ! »</em><br><br>
+    Tu dois retrouver ce trésor. Tu peux te métamorphoser en
+    <em>soldat de la Marine Royale française</em> ou en <em>pirate</em>
+    grâce à la bouteille de rhum que tu trouveras en chemin.
+  </div>
+  <button id="btn-start">Commencer l'aventure</button>
+  <div class="title-wave"></div>
+</div>
+
+<!--JEU-->
+<div id="game-wrap">
+  <canvas id="cv"></canvas>
+
+  <!-- inventaire-->
+  <div id="hud">
+    <div id="inv-panel">
+      <h3>Inventaire</h3>
+      <div class="ii" id="ii-shovel"><span class="ic">+</span><span>Pelle</span></div>
+      <div class="ii clickable" id="ii-msg" title="Cliquer pour lire le message">
+        <span class="ic">~</span><span>Message crypté de La Buse</span>
+      </div>
+      <div class="ii" id="ii-rum">
+        <span class="ic">*</span><span>Rhum de transformation</span>
+        <span id="rum-count"></span>
+      </div>
+      <div class="ii" id="ii-key"><span class="ic">#</span><span>Clef du trésor</span></div>
+      <div class="ii" id="ii-treasure"><span class="ic">*</span><span>Trésor de La Buse !</span></div>
+    </div>
+    <div id="status-panel">
+      <div class="mode-lbl" id="mode-lbl">Pirate</div>
+      <div id="hint"></div>
+    </div>
+  </div>
+
+  <div id="controls">← → : Marcher &nbsp;|&nbsp; W : Sauter &nbsp;|&nbsp; E : Ramasser/Interagir &nbsp;|&nbsp; Q : Creuser &nbsp;|&nbsp; F : Boire le rhum</div>
+
+  <!--message crypté -->
+  <div class="modal-overlay" id="modal-crypto">
+    <div class="modal-box">
+      <h2>Message de La Buse</h2>
+      <p>Un cryptogramme trouvé sur la plage, gravé dans le sable :</p>
+      <div class="crypto">
+        PRBA VRPXF GFBO BXVB ZBEE BGZO BXVR BRPXF<br>
+        TZOB FGZP BRXV BPFG BZRO XBVP FGBO RZXV<br>
+        <br>
+        [Décryptage disponible au Fort Royal : Table de décryptage]
+      </div>
+      <p style="font-size:11px;color:#88aa88;margin-top:8px">
+        « Qui peut comprendre, comprendra ! »  -Olivier Levasseur, 1730
+      </p>
+      <button class="modal-btn" onclick="document.getElementById('modal-crypto').classList.remove('show')">Fermer</button>
+    </div>
+  </div>
+
+  <!-- table de décryptage (fort) -->
+  <div class="modal-overlay" id="modal-decrypt">
+    <div class="modal-box">
+      <h2>Table de Decryptage - Fort Royal</h2>
+      <p>Grâce à la table de chiffrement du fort, tu déchiffres le message :</p>
+      <div class="crypto" style="font-size:12px;color:#ffd090;line-height:2">
+        « Riches, gloire, pouvoir. Un homme qui a tout acquis en ce monde,<br>
+        le Roi des Pirates, moi <strong>Olivier Levasseur</strong>.<br>
+        Mes richesses et mes trésors ? Si vous les voulez,<br>
+        vous pouvez les avoir ! Cherchez-les !<br>
+        Je les ai tous laissés à <em>cet endroit</em> ! »
+      </div>
+      <p style="font-size:11px;color:#c89600;margin-top:10px">Le trésor est quelque part plus loin… dans la grotte !</p>
+      <button class="modal-btn" onclick="document.getElementById('modal-decrypt').classList.remove('show')">Fermer</button>
+    </div>
+  </div>
+
+  <!-- Arrestation -->
+  <div id="arrested-screen">
+    <h1>ARRÊTÉ !</h1>
+    <p>Les soldats vous ont intercepté en tenue de pirate à l'entrée du Fort Royal.</p>
+    <button onclick="location.reload()">Recommencer depuis le debut</button>
+  </div>
+
+  <!-- Yahtzee -->
+  <div id="yahtzee-overlay">
+    <div id="yahtzee-box">
+      <h2>Le Trésor de La Buse, grand Yahtzee</h2>
+      <div class="sub">Obtenez plus de 248 points pour révéler le trésor ! (3 lancers par tour, 13 tours)</div>
+      <div id="dice-area">
+        <div class="die" id="d0">-</div>
+        <div class="die" id="d1">-</div>
+        <div class="die" id="d2">-</div>
+        <div class="die" id="d3">-</div>
+        <div class="die" id="d4">-</div>
+      </div>
+      <button id="roll-btn">Lancer les dés</button>
+      <div id="rolls-left">Lancers restants ce tour : 3</div>
+      <div id="score-area"></div>
+      <div id="total-display">Score total : <span id="total-score">0</span> / 375</div>
+      <div id="yahtzee-msg"></div>
+      <button id="yahtzee-replay" onclick="startYahtzee()">Rejouer le Yahtzee</button>
+    </div>
+  </div>
+
+  <!-- Victoire -->
+  <div id="win-screen">
+    <h1>TRÉSOR TROUVÉ !</h1>
+    <div class="win-quote">
+      « Mon trésor n'est ni or ni quelque richesse.<br>
+      De toutes mes prises, celle dont je suis le plus fier<br>
+      est certainement la décision que j'ai prise<br>
+      de vivre une vie d'aventure, d'incertitude et de danger.<br><br>
+      Le plus grand trésor que tu trouveras ici,<br>
+      c'est toi qui peux te l'offrir <br>
+      et c'est celui de vivre…<br>
+      vivre sans être un spectateur de ta propre vie. »<br><br>
+      <span style="color:#c89600;font-size:11px"> -Olivier Levasseur, dit La Buse</span>
+    </div>
+    <button onclick="location.reload()">Rejouer</button>
+  </div>
+</div>
+
+<script src="game.js"></script>
+
+</body>
+</html>
