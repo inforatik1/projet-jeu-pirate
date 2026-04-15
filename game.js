@@ -152,40 +152,15 @@ function mkSky(){
   return toURL(c.transferToImageBitmap());
 }
 
-const TEX={
+const visu={
   pirate:mkPirate(false), pirateSh:mkPirate(true), marin:mkMarin(),
   sand:mkSand(), jungle:mkJungle(), cave:mkCave(),
   stone:mkStone(), wood:mkWood(), trunk:mkTrunk(), leaf:mkLeaf(), sky:mkSky()
 };
 
-// étoiles animées accueil
-(function(){
-  const wrap=document.getElementById('stars-canvas-wrap');
-  const sc=document.createElement('canvas');
-  sc.style.cssText='position:absolute;inset:0;width:100%;height:100%';
-  wrap.appendChild(sc);
-  const sg=sc.getContext('2d');
-  const stars=Array.from({length:120},()=>({
-    x:Math.random()*window.innerWidth,
-    y:Math.random()*window.innerHeight*.5,
-    r:Math.random()*2+.4,a:Math.random()
-  }));
-  function drawStars(){
-    sc.width=window.innerWidth;sc.height=window.innerHeight*.5;
-    sg.clearRect(0,0,sc.width,sc.height);
-    stars.forEach(s=>{
-      s.a+=.005*(Math.random()>.5?1:-1);
-      s.a=Math.max(.1,Math.min(1,s.a));
-      sg.fillStyle=`rgba(255,240,200,${s.a})`;
-      sg.beginPath();sg.arc(s.x,s.y,s.r,0,Math.PI*2);sg.fill();
-    });
-  }
-  setInterval(drawStars,60);drawStars();
-})();
 
-// Lancement du jeu au clic Kaplay 
+// Lancement du jeu 
 document.getElementById('btn-start').addEventListener('click', async () => {
-  // Afficher le jeu
   document.getElementById('title-screen').classList.add('fade-out');
   document.getElementById('game-wrap').style.display = 'block';
   setTimeout(()=>{ document.getElementById('title-screen').style.display='none'; }, 900);
@@ -195,198 +170,17 @@ document.getElementById('btn-start').addEventListener('click', async () => {
   startGame(kaplay);
 });
 
-
-// ── Yahtzee complet (claude.ai) ──────────────────────────────────────────────
-const DICE_FACES = ["⚀","⚁","⚂","⚃","⚄","⚅"];
-const CATEGORIES = [
-  // Haut
-  {id:"ones",   label:"As (1)",       upper:true},
-  {id:"twos",   label:"Deux (2)",     upper:true},
-  {id:"threes", label:"Trois (3)",    upper:true},
-  {id:"fours",  label:"Quatre (4)",   upper:true},
-  {id:"fives",  label:"Cinq (5)",     upper:true},
-  {id:"sixes",  label:"Six (6)",      upper:true},
-  // Bas
-  {id:"three_k",label:"Brelan",       upper:false},
-  {id:"four_k", label:"Carré",        upper:false},
-  {id:"fh",     label:"Full House",   upper:false},
-  {id:"sm",     label:"Petite Suite", upper:false},
-  {id:"lg",     label:"Grande Suite", upper:false},
-  {id:"yahtzee",label:"Yahtzee",      upper:false},
-  {id:"chance", label:"Chance",       upper:false},
-];
-
-let yDice=[0,0,0,0,0], yHeld=[false,false,false,false,false];
-let yRollsLeft=3, yScores={}, yGameOver=false, yCallback=null;
-
-function startYahtzee(cb){
-  if(cb) yCallback=cb;
-  yDice=[0,0,0,0,0]; yHeld=[false,false,false,false,false];
-  yRollsLeft=3; yScores={}; yGameOver=false;
-  document.getElementById("yahtzee-msg").textContent="";
-  document.getElementById("yahtzee-replay").style.display="none";
-  renderYahtzee();
-}
-
-function rollDice(){
-  if(yRollsLeft<=0 || yGameOver) return;
-  for(let i=0;i<5;i++) if(!yHeld[i]) yDice[i]=Math.floor(Math.random()*6)+1;
-  yRollsLeft--;
-  renderYahtzee();
-}
-
-function toggleHold(i){
-  if(yRollsLeft===3 || yRollsLeft===0) return; // avant 1er lancer ou fini
-  yHeld[i]=!yHeld[i];
-  renderDice();
-}
-
-function calcScore(cat, dice){
-  const counts=Array(7).fill(0);
-  dice.forEach(d=>counts[d]++);
-  const vals=dice.reduce((a,b)=>a+b,0);
-  const maxCount=Math.max(...counts);
-  const sorted=[...new Set(dice)].sort((a,b)=>a-b);
-  const hasSeq=(n)=>{
-    for(let i=0;i<=sorted.length-n;i++){
-      let ok=true;
-      for(let j=1;j<n;j++) if(sorted[i+j]!==sorted[i]+j){ok=false;break;}
-      if(ok) return true;
-    }
-    return false;
-  };
-  switch(cat){
-    case"ones":   return counts[1]*1;
-    case"twos":   return counts[2]*2;
-    case"threes": return counts[3]*3;
-    case"fours":  return counts[4]*4;
-    case"fives":  return counts[5]*5;
-    case"sixes":  return counts[6]*6;
-    case"three_k":return maxCount>=3?vals:0;
-    case"four_k": return maxCount>=4?vals:0;
-    case"fh":     return (maxCount===3&&counts.filter(c=>c===2).length===1)||
-                         (maxCount===2&&counts.filter(c=>c===3).length===1)?25:0;
-    case"sm":     return hasSeq(4)?30:0;
-    case"lg":     return hasSeq(5)?40:0;
-    case"yahtzee":return maxCount===5?50:0;
-    case"chance": return vals;
-  }
-  return 0;
-}
-
-function assignScore(cat){
-  if(yScores.hasOwnProperty(cat)||yRollsLeft===3||yGameOver) return;
-  yScores[cat]=calcScore(cat,yDice);
-  // Nouveau tour
-  yHeld=[false,false,false,false,false];
-  yRollsLeft=3;
-  if(Object.keys(yScores).length===13){
-    yGameOver=true;
-    const total=getTotalScore();
-    if(total>248){
-      document.getElementById("yahtzee-msg").textContent="Vous avez "+total+" points, Victoire ! Le tresor est a vous !";
-      setTimeout(()=>{
-        document.getElementById("yahtzee-overlay").classList.remove("show");
-        document.getElementById("win-screen").classList.add("show");
-        if(yCallback) yCallback();
-      },1800);
-    } else {
-      document.getElementById("yahtzee-msg").textContent="Score : "+total+"/375. Il faut plus de 248 points ! Réessayez.";
-      document.getElementById("yahtzee-replay").style.display="block";
-    }
-  }
-  renderYahtzee();
-}
-
-function getTotalScore(){
-  const upper=["ones","twos","threes","fours","fives","sixes"];
-  let up=0;
-  upper.forEach(k=>{ if(yScores.hasOwnProperty(k)) up+=yScores[k]; });
-  let bonus=up>=63?35:0;
-  let total=bonus;
-  CATEGORIES.forEach(cat=>{ if(yScores.hasOwnProperty(cat.id)) total+=yScores[cat.id]; });
-  return total;
-}
-
-function renderDice(){
-  for(let i=0;i<5;i++){
-    const el=document.getElementById("d"+i);
-    el.textContent = yDice[i]>0 ? DICE_FACES[yDice[i]-1] : "-";
-    el.className="die"+(yHeld[i]?" held":"");
-  }
-}
-
-function renderYahtzee(){
-  renderDice();
-  const btn=document.getElementById("roll-btn");
-  btn.disabled=(yRollsLeft===0||yGameOver);
-  document.getElementById("rolls-left").textContent="Lancers restants ce tour : "+yRollsLeft;
-
-  // Score board
-  const area=document.getElementById("score-area");
-  area.innerHTML="";
-  let upperSum=0;
-  const upperCats=["ones","twos","threes","fours","fives","sixes"];
-  upperCats.forEach(k=>{ if(yScores.hasOwnProperty(k)) upperSum+=yScores[k]; });
-
-  // Titre haut
-  const t1=document.createElement("div");
-  t1.className="score-section-title";
-  t1.textContent="SECTION HAUTE (bonus +35 si ≥63)";
-  area.appendChild(t1);
-
-  CATEGORIES.filter(c=>c.upper).forEach(cat=>{
-    const row=document.createElement("div");
-    row.className="score-row"+(yScores.hasOwnProperty(cat.id)?" used":"");
-    const potential=yRollsLeft<3&&!yScores.hasOwnProperty(cat.id)?calcScore(cat.id,yDice):null;
-    row.innerHTML=`<span>${cat.label}</span><span class="pts">${yScores.hasOwnProperty(cat.id)?yScores[cat.id]:(potential!==null?`(${potential})`:"")}</span>`;
-    if(!yScores.hasOwnProperty(cat.id)) row.onclick=()=>assignScore(cat.id);
-    area.appendChild(row);
-  });
-
-  // Bonus 
-  const bonus=document.createElement("div");
-  bonus.className="score-row used";
-  bonus.innerHTML=`<span>Bonus (si ≥63)</span><span class="pts">${upperSum>=63?"+35":"("+upperSum+"/63)"}</span>`;
-  area.appendChild(bonus);
-
-  // Titre bas
-  const t2=document.createElement("div");
-  t2.className="score-section-title";
-  t2.textContent="SECTION BASSE";
-  area.appendChild(t2);
-
-  CATEGORIES.filter(c=>!c.upper).forEach(cat=>{
-    const row=document.createElement("div");
-    row.className="score-row"+(yScores.hasOwnProperty(cat.id)?" used":"");
-    const potential=yRollsLeft<3&&!yScores.hasOwnProperty(cat.id)?calcScore(cat.id,yDice):null;
-    row.innerHTML=`<span>${cat.label}</span><span class="pts">${yScores.hasOwnProperty(cat.id)?yScores[cat.id]:(potential!==null?`(${potential})`:"")}</span>`;
-    if(!yScores.hasOwnProperty(cat.id)) row.onclick=()=>assignScore(cat.id);
-    area.appendChild(row);
-  });
-
-  document.getElementById("total-score").textContent=getTotalScore();
-}
-
-document.addEventListener("DOMContentLoaded",()=>{
-  document.getElementById("roll-btn").addEventListener("click",rollDice);
-  for(let i=0;i<5;i++){
-    document.getElementById("d"+i).addEventListener("click",()=>toggleHold(i));
-  }
-});
-
-
 function startGame(kaplay) {
 
 const k = kaplay({
-  canvas:document.getElementById("cv"),
+  canvas:document.getElementById("canvas"),
   width:960,height:520,
   background:[18,50,130],
   global:false,
   debug:false,
 });
 
-Object.entries(TEX).forEach(([n,u])=>k.loadSprite(n,u));
+Object.entries(visu).forEach(([n,u])=>k.loadSprite(n,u));
 
 //état transformations
 const S={
@@ -416,7 +210,7 @@ const C={
   purL:k.rgb(175,78,238),
 };
 
-//progression gauche a droite
+//scène déroulement à la mario
 
 const GY=370, WW=3700;
 const T64=64, T32=32;
@@ -435,23 +229,21 @@ k.scene("game",()=>{
   }
   [70,250,490,720,950,1180,1520,1900,2200,2600,2950,3300].forEach((x,i)=>cloud(x,28+i%3*16,.88+i%2*.18));
 
-  // Sol 
-
-  //Fonction tuiles 
-  function tiles(sprite,x1,x2,y,rows=1,yt=T64){
+  // Sols 
+  function Sols(sprite,x1,x2,y,rows=1,yt=T64){
     const cols=Math.ceil((x2-x1)/yt)+1;
     for(let r=0;r<rows;r++)
       for(let i=0;i<cols;i++)
         k.add([k.sprite(sprite),k.pos(x1+i*yt,y+r*yt),k.z(1)]);
   }
-  function wallTiles(sprite,x,y,w,h,tw,th){
+  function murs(sprite,x,y,w,h,tw,th){
     const cols=Math.ceil(w/tw),rows=Math.ceil(h/th);
     for(let r=0;r<rows;r++)for(let cc=0;cc<cols;cc++)
       k.add([k.sprite(sprite),k.pos(x+cc*tw,y+r*th),k.z(3)]);
     k.add([k.rect(w,h),k.pos(x,y),k.anchor("topleft"),k.color(k.rgb(1,1,1)),k.opacity(0),k.area(),k.body({isStatic:true}),"wall",k.z(3)]);
   }
   //murs sans hitbox
-  function wallTilesDeco(sprite,x,y,w,h,tw,th){
+  function fauxmurs(sprite,x,y,w,h,tw,th){
     const cols=Math.ceil(w/tw),rows=Math.ceil(h/th);
     for(let r=0;r<rows;r++)for(let cc=0;cc<cols;cc++)
       k.add([k.sprite(sprite),k.pos(x+cc*tw,y+r*th),k.z(3)]);
@@ -480,7 +272,7 @@ k.scene("game",()=>{
   }
 
   
-  //  ZONE 1 : plage  (0 a 600)
+  // plage 1 
   k.add([
     k.rect(WW, 80),
     k.pos(0, GY),
@@ -492,12 +284,8 @@ k.scene("game",()=>{
     "ground",
   ]);
 
-  tiles("sand",0,620,GY,2);
+  Sols("sand",0,620,GY,2);
 
-  // Panneau de zone
-  k.add([k.rect(6,50),k.pos(30,GY-50),k.color(C.woodDk),k.z(4)]);
-  k.add([k.rect(100,32),k.pos(32,GY-78),k.color(C.wood),k.z(4)]);
-  k.add([k.text("Plage de\nPort Louis",{size:7,font:"monospace"}),k.pos(36,GY-76),k.color(C.brDk),k.z(5)]);
 
   // Palmiers déco
   palm(80); palm(350);
@@ -520,41 +308,34 @@ k.scene("game",()=>{
   const RX=510,RY=GY;
   const rumBuriedSpot=k.add([k.rect(44,6),k.pos(RX-10,RY-4),k.color(C.yellow),k.opacity(.5),k.z(4)]);
   let rumBuriedT=0;rumBuriedSpot.onUpdate(()=>{rumBuriedT+=k.dt();rumBuriedSpot.opacity=.28+Math.sin(rumBuriedT*3)*.28;});
-  k.add([k.text("Creuser ici",{size:8}),k.pos(RX-16,RY-22),k.color(C.gold),k.z(5),"rumHint"]);
+  k.add([k.text("Creuser ici",{size:8}),k.pos(RX-16,RY-22),k.color(C.gold),k.z(5),"mess"]);
 
   
-  //  ZONE 2 : jungle 1  (600 à 1100)
+  //jungle 
   
-  tiles("jungle",600,1120,GY,2,T64);
+  Sols("jungle",600,1120,GY,2,T64);
 
   // Végétation
   [640,720,820,920,1020].forEach(x=>palm(x));
-  // Buissons déco
+  
   [660,760,860,960].forEach(x=>k.add([k.circle(18),k.pos(x,GY-18),k.color(k.rgb(20,100,18)),k.z(4)]));
 
   
-  //  ZONE 3 : fort de france  (1100 à 1800)
+  // fort de france 
   
   const FORT_X=1100, FORT_W=700, FORT_H=240;
 
-  // Sol intérieur 
-  tiles("stone",FORT_X+30,FORT_X+FORT_W,GY,2,T32);
-  tiles("sand",FORT_X-60,FORT_X+30,GY,2,T64);// approche
+  // Sol fort 
+ Sols("stone",FORT_X+30,FORT_X+FORT_W,GY,2,T32);
+  Sols("sand",FORT_X-60,FORT_X+30,GY,2,T64);
 
   // Mur gauche avec porte
-  wallTilesDeco("stone",FORT_X,GY-FORT_H,30,FORT_H,T32,20);
+  fauxmurs("stone",FORT_X,GY-FORT_H,30,FORT_H,T32,20);
   // Mur du fond 
-  wallTilesDeco("stone",FORT_X+30,GY-FORT_H,FORT_W-30,30,T32,20);
+  fauxmurs("stone",FORT_X+30,GY-FORT_H,FORT_W-30,30,T32,20);
   // Mur droit déco seulement
-  wallTilesDeco("stone",FORT_X+FORT_W,GY-FORT_H,40,FORT_H,T32,20);
-  // Créneaux
-  for(let cx=FORT_X+30;cx<FORT_X+FORT_W;cx+=56)
-    k.add([
-      k.rect(28,26),
-      k.pos(cx,GY-FORT_H-26),
-      k.color(C.stone),
-      k.z(4)
-    ]);
+  fauxmurs("stone",FORT_X+FORT_W,GY-FORT_H,40,FORT_H,T32,20);
+ 
   // Plateformes intérieures
   platform("stone",FORT_X+80,GY-90,140,T32,20);
   platform("stone",FORT_X+280,GY-175,120,T32,20);
@@ -571,10 +352,6 @@ k.scene("game",()=>{
   spawnNpcMarin(k, C, FORT_X + 46, GY - 64);
   spawnNpcMarin(k, C, FORT_X - 60, GY - 64);
 
-  // Panneau fort
-  k.add([k.rect(6,45),k.pos(FORT_X-110,GY-45),k.color(C.woodDk),k.z(4)]);
-  k.add([k.rect(100,30),k.pos(FORT_X-113,GY-72),k.color(C.stone),k.z(4)]);
-  k.add([k.text("FORT ROYAL\nAcces reserve",{size:6.5,font:"monospace"}),k.pos(FORT_X-110,GY-70),k.color(C.stoneDk),k.z(5)]);
 
   // Table de décryptage 
   const TABLE_X=FORT_X+250,TABLE_Y=GY-22;
@@ -590,84 +367,52 @@ k.scene("game",()=>{
   const keyO=k.add([k.circle(6),k.pos(KX-5,KY+5),k.color(k.rgb(220,190,255)),k.z(7)]);
   k.add([k.text("Clef du tresor",{size:8}),k.pos(KX-28,KY-20),k.color(C.gold),k.z(7)]);
   let kt=0;keyH.onUpdate(()=>{kt+=k.dt();const o=Math.sin(kt*2.2)*5;keyH.pos.y=KY+5+o;keyR.pos.y=KY+5+o;keyO.pos.y=KY+5+o;});
-
-
   
+  //grotte pirate
 
-  
-  //ZONE 4 la grotte pirate  (1800 à 2400)
-  
   const CAVE_X=1800, CAVE_W=600, CAVE_H=300;
-  tiles("cave",CAVE_X,CAVE_X+CAVE_W,GY,2,T64);
+  Sols("cave",CAVE_X,CAVE_X+CAVE_W,GY,2,T64);
 
-  // Plafond de grotte + murs
-  wallTilesDeco("cave",CAVE_X,GY-CAVE_H,30,CAVE_H,T64,T64);    // mur entrée blocage 
-  wallTiles("cave",CAVE_X+30,GY-CAVE_H,CAVE_W-30,40,T64,T64);  // plafond (physique)
-  wallTilesDeco("cave",CAVE_X+CAVE_W,GY-CAVE_H,40,CAVE_H,T64,T64); // mur sortie deco seulement
-  // Stalagmites déco
-  [1840,1900,1980,2060,2140,2220,2320].forEach(x=>{
+  
+  fauxmurs("cave",CAVE_X,GY-CAVE_H,30,CAVE_H,T64,T64);   
+  murs("cave",CAVE_X+30,GY-CAVE_H,CAVE_W-30,40,T64,T64);  
+  fauxmurs("cave",CAVE_X+CAVE_W,GY-CAVE_H,40,CAVE_H,T64,T64); 
+
+  // Stalagmites 
+  [1900,1980,2060,2140,2220,2320].forEach(x=>{
     const h=20+Math.floor(Math.random()*30);
-    k.add([k.rect(14,h),k.pos(x,GY-h),k.color(k.rgb(50,38,24)),k.z(4)]);
+    k.add([
+        k.rect(14, h),
+        k.pos(x, GY - h),
+        k.color(k.rgb(50,38,24)),
+        k.area(),
+        k.body({ isStatic: true }),
+        k.z(4),]);
   });
   // Stalactites
   [1860,1940,2020,2100,2180,2280,2360].forEach(x=>{
     const h=15+Math.floor(Math.random()*25);
     k.add([k.rect(12,h),k.pos(x,GY-CAVE_H+40),k.color(k.rgb(45,34,22)),k.z(4)]);
   });
-  // Lueur de torches
-  [1880,2080,2280].forEach(x=>{
-    // torches
-    k.add([k.circle(30),k.pos(x+7,GY-CAVE_H+65),k.color(k.rgb(255,160,40)),k.opacity(.12),k.z(4)]);
-  });
-
+  
+//pnj
   spawnNpcPirate(k, C, CAVE_X + 40, GY - 64);
   spawnNpcPirate(k, C, CAVE_X - 56, GY - 64);
 
-  // Panneau grotte
-  k.add([k.rect(6,40),k.pos(CAVE_X-105,GY-40),k.color(C.woodDk),k.z(4)]);
-  k.add([k.rect(96,28),k.pos(CAVE_X-108,GY-65),k.color(k.rgb(40,28,14)),k.z(4)]);
-  k.add([k.text("GROTTE\nPirates seult.",{size:6.5,font:"monospace"}),k.pos(CAVE_X-105,GY-63),k.color(k.rgb(200,50,30)),k.z(5)]);
-
+  
   // faux coffre du trésor 
   const CCX=CAVE_X+380, CCY=GY;
   k.add([k.rect(54,32),k.pos(CCX-2,CCY+4),k.color(C.brown),k.z(3)]);
-  const cFront=k.add([k.rect(54,26),k.pos(CCX-2,CCY-22),k.color(C.brDk),k.z(4)]);
-  const cLid  =k.add([k.rect(54,15),k.pos(CCX-2,CCY-37),k.color(C.brown),k.z(5)]);
-  k.add([k.rect(54,5),k.pos(CCX-2,CCY-24),k.color(C.gold),k.z(6)]);
-  const cLock =k.add([k.circle(7),k.pos(CCX+24,CCY-18),k.color(C.gold),k.z(7)]);
-  const cZone =k.add([k.rect(74,68),k.pos(CCX-12,CCY-44),k.area(),k.opacity(0),k.z(7),"chest"]);
-
- 
-  //  ZONE 5 jungle 2  (2400 a 3000)
-  
-  tiles("jungle",2400,3020,GY,2,T64);
-  [2450,2560,2680,2800,2920].forEach(x=>palm(x));
-  [2480,2600,2720,2840].forEach(x=>k.add([k.circle(20),k.pos(x,GY-20),k.color(k.rgb(18,95,16)),k.z(4)]));
+  k.add([k.rect(54,26),k.pos(CCX-2,CCY-22),k.color(C.brDk),k.z(4)]);
+  k.add([k.rect(54,15),k.pos(CCX-2,CCY-37),k.color(C.brown),k.z(5)]);
+  k.add([k.rect(54,5),k.pos(CCX-2,CCY-24),k.color(C.gold),k.z(6)])
+  k.add([k.circle(7),k.pos(CCX+24,CCY-18),k.color(C.gold),k.z(7)]);
+  k.add([k.rect(74,68),k.pos(CCX-12,CCY-44),k.area(),k.opacity(0),k.z(7),"coffre vide"]);
 
   
-  //  ZONE 6 croix  
   
-  tiles("sand",3000,WW,GY,2,T64);
-  palm(3050);palm(3500);
+  // Joueur 
 
-  // Panneau final
-  k.add([k.rect(6,50),k.pos(3020,GY-50),k.color(C.woodDk),k.z(4)]);
-  k.add([k.rect(110,30),k.pos(3022,GY-76),k.color(C.wood),k.z(4)]);
-  k.add([k.text("Trésor de La Buse\n→ Cherchez ici !",{size:7,font:"monospace"}),k.pos(3026,GY-74),k.color(C.brDk),k.z(5)]);
-
-  // 3 croix creuser sous la 3ème déclenche le Yahtzee
-  const CROSS_Y=GY;
-  const CROSSES=[3150,3280,3410]; // x des croix 1,2,3
-  CROSSES.forEach((x,i)=>{
-    k.add([k.text("X",{size:26}),k.pos(x,CROSS_Y-85),k.color(k.rgb(190,30,10)),k.z(5)]);
-    k.add([k.text(""+(i+1),{size:10}),k.pos(x+8,CROSS_Y-58),k.color(C.gold),k.z(5)]);
-  });
-  k.add([k.text("fiez vous à la Buse",{size:9}),k.pos(3080,CROSS_Y-130),k.color(C.gold),k.z(5)]);
-  // Zone de déclenchement autour de la 3ème croix
-  k.add([k.rect(80,90),k.pos(CROSSES[2]-20,CROSS_Y-90),k.color(k.rgb(1,1,1)),k.opacity(0),k.area(),k.z(5),"minezone"]);
-
-  
-  // Joueur : physique Kaplay 
   const PW = 40, PH = 64;
   const SPD = 185;
 
@@ -676,7 +421,7 @@ k.scene("game",()=>{
     k.pos(60, GY - 98),
     k.anchor("topleft"),
     k.area(),
-    k.body({ jumpForce: 580 }),
+    k.body({ jumpForce: 580 }), //pour atteindre la plateforme
     k.z(9),
     "player",
   ]);
@@ -719,7 +464,7 @@ k.scene("game",()=>{
       } else if (S.mode === "marin" && !S.fortUnlocked) {
         player.pos.x = FORT_X - PW;
         player.vel.x = 0;
-        hint("Parlez au garde (E) pour obtenir l'autorisation d'entrer.");
+        aide("Parlez au garde (E) pour obtenir l'autorisation d'entrer.");
       }
     }
 
@@ -728,11 +473,11 @@ k.scene("game",()=>{
       if (S.mode === "marin") {
         player.pos.x = CAVE_X - PW;
         player.vel.x = 0;
-        hint("La grotte est reservee aux pirates ! Buvez le rhum (F) pour vous transformer.");
+        aide("La grotte est reservee aux pirates ! Buvez le rhum (F) pour vous transformer.");
       } else if (S.mode === "pirate" && !S.caveUnlocked) {
         player.pos.x = CAVE_X - PW;
         player.vel.x = 0;
-        hint("Parlez au garde pirate (E) pour entrer dans la grotte.");
+        aide("Parlez au garde pirate (E) pour entrer dans la grotte.");
       }
     }
   });
@@ -743,7 +488,7 @@ k.scene("game",()=>{
   });
 
   // proximité pelle et interraction
-  let nShovel=false,nMsg=false,nKey=false,nChest=false,nTable=false,nMine=false,nGuard=false,nCaveGuard=false;
+  let nShovel=false,nMsg=false,nKey=false,nTable=false,nGuard=false,nCaveGuard=false;
 
   function rectOverlap(ax,ay,aw,ah, bx,by,bw,bh){
     return ax<bx+bw && ax+aw>bx && ay<by+bh && ay+ah>by;
@@ -758,7 +503,6 @@ k.scene("game",()=>{
     nMsg       = msgPickedUp?false:   rectOverlap(px,py,PW,PH, msgX-5,msgY-35,50,40);
     nKey       = keyPickedUp?false:   rectOverlap(px,py,PW,PH, KX-10,KY-10,50,30);
     nTable     = rectOverlap(px,py,PW,PH, TABLE_X,TABLE_Y,85,30);
-    nMine      = rectOverlap(px,py,PW,PH, CROSSES[2]-20,GY-90,80,90);
   });
 
   
@@ -768,29 +512,29 @@ k.scene("game",()=>{
     // Garde du fort (en marin uniquement)
     if(nGuard && S.mode==="marin" && !S.fortUnlocked){
       S.fortUnlocked=true;
-      hint("Garde : Bonsoir, soldat. Vous pouvez entrer. Le passage est ouvert.");
+      aide("Garde : Bonsoir, soldat. Vous pouvez entrer. Le passage est ouvert.");
       return;
     }
     if(nGuard && S.mode==="pirate"){
-      hint("Le garde vous regarde avec mefiance. Transformez-vous en soldat marin d'abord (F).");
+      aide("Le garde vous regarde avec mefiance. Transformez-vous en soldat marin d'abord (F).");
       return;
     }
     // Garde de la grotte (en pirate )
     if(nCaveGuard && S.mode==="pirate" && !S.caveUnlocked){
       S.caveUnlocked=true;
-      hint("Garde pirate : Ah, un des notres ! Entrez, camarade. (Passage ouvert)");
+      aide("Garde pirate : Ah, un des notres ! Entrez, camarade. (Passage ouvert)");
       return;
     }
     if(nCaveGuard && S.mode==="marin"){
-      hint("Le pirate vous bloque. Il ne laisse pas passer les soldats royaux.");
+      aide("Le pirate vous bloque. Il ne laisse pas passer les soldats royaux.");
       return;
     }
-    // Message crypte
+    // Message crypté
     if(nMsg && !S.hasMsg){
       S.hasMsg=true; msgPickedUp=true;
       msgObj.destroy();
       updUI();
-      hint("Message de La Buse recupere ! Consultez-le dans l'inventaire en cliquant dessus.");
+      aide("Message de La Buse recupere ! Consultez-le dans l'inventaire en cliquant dessus.");
       return;
     }
     // Pelle
@@ -798,30 +542,23 @@ k.scene("game",()=>{
       S.hasShovel=true;S.shovelEq=true; shovelPickedUp=true;
       sH.destroy();sB.destroy();
       player.use(k.sprite("pirateSh"));
-      updUI();hint("Pelle recuperee ! Approchez-vous de la tache brillante sur la plage et appuyez sur F pour creuser.");
+      updUI();aide("Pelle recuperee ! Approchez-vous de la tache brillante sur la plage et appuyez sur F pour creuser.");
       return;
     }
     // Clef (en marin)
     if(nKey && !S.hasKey && S.mode==="marin"){
       S.hasKey=true; keyPickedUp=true;
       keyH.destroy();keyR.destroy();keyO.destroy();
-      updUI();hint("Clef recuperee ! Revenez a la grotte de pirates (transformez-vous avec F)");
+      updUI();aide("Clef recuperee ! Revenez a la grotte de pirates (transformez-vous avec F)");
       return;
     }
-    // Table de decryptage
+    // Table de décryptage
     if(nTable && S.mode==="marin"){
       document.getElementById("modal-decrypt").classList.add("show");
       S.fortDecrypted=true;
       return;
     }
-    // Zone Yahtzee (3eme croix)
-    if(nMine && S.hasKey){
-      document.getElementById("yahtzee-overlay").classList.add("show");
-      startYahtzee(()=>{S.won=true;updUI();});
-      return;
-    } else if(nMine && !S.hasKey){
-      hint("Il vous faut la clef du fort pour creuser ici !");
-    }
+    
   });
 
   // Q pour creuser avec la pelle
@@ -831,19 +568,19 @@ k.scene("game",()=>{
       if(Math.abs(px - RX) < 80){
         S.hasRum=true;S.rumUses=5;
         rumBuriedSpot.destroy();
-        k.get("rumHint").forEach(o=>o.destroy());
+        k.get("mess").forEach(o=>o.destroy());
         for(let i=0;i<12;i++){
           const dp=k.add([k.circle(3+Math.random()*3),k.pos(RX+Math.random()*44,RY),k.color(C.sandDk),k.z(9)]);
           const vx2=(Math.random()-.5)*80,vy2=-70-Math.random()*50;let lt=0;
           dp.onUpdate(()=>{lt+=k.dt();dp.pos.x+=vx2*k.dt();dp.pos.y+=vy2*k.dt();dp.opacity=Math.max(0,1-lt*2);if(lt>.9)dp.destroy();});
         }
-        updUI();hint("Bouteille de rhum deterree ! Appuyez sur F pour la boire et changer de forme (5 utilisations).");
+        updUI();aide("Bouteille de rhum deterree ! Appuyez sur F pour la boire et changer de forme (5 utilisations).");
         return;
       }
     }
-    if(!S.hasShovel) hint("Il vous faut une pelle pour creuser.");
-    else if(!S.shovelEq) hint("Equipez la pelle d'abord (E).");
-    else hint("Rien a creuser ici, cherchez la tache brillante sur la plage.");
+    if(!S.hasShovel) aide("Il vous faut une pelle pour creuser.");
+    else if(!S.shovelEq) aide("Equipez la pelle d'abord (E).");
+    else aide("Rien a creuser ici, cherchez la tache brillante sur la plage.");
   });
 
   //  F pr boire le rhum de transformation
@@ -852,17 +589,17 @@ k.scene("game",()=>{
       S.rumUses--;
       if(S.mode==="pirate"){
         S.mode="marin";player.use(k.sprite("marin"));
-        hint("Vous etes soldat marin ! Parlez au garde du Fort Royal (E), puis entrez. Rhum restant : "+S.rumUses+"/"+S.maxRum);
+        aide("Vous etes soldat marin ! Parlez au garde du Fort Royal (E), puis entrez. Rhum restant : "+S.rumUses+"/"+S.maxRum);
       } else {
         S.mode="pirate";player.use(k.sprite(S.shovelEq&&S.hasShovel?"pirateSh":"pirate"));
-        hint("Vous etes pirate ! Entrez dans la Grotte plus a droite. Rhum restant : "+S.rumUses+"/"+S.maxRum);
+        aide("Vous etes pirate ! Entrez dans la Grotte plus a droite. Rhum restant : "+S.rumUses+"/"+S.maxRum);
       }
-      if(S.rumUses===0){hint("Le rhum est epuise ! Plus de transformations possibles.");S.hasRum=false;}
+      if(S.rumUses===0){aide("Le rhum est epuise ! Plus de transformations possibles.");S.hasRum=false;}
       updUI();
       return;
     }
-    if(S.hasRum && S.rumUses===0){hint("La bouteille est vide ! Plus de transformations possibles.");}
-    if(!S.hasRum){hint("Vous n'avez pas de rhum. Creusez la tache brillante sur la plage avec la pelle (Q).");}
+    if(S.hasRum && S.rumUses===0){aide("La bouteille est vide ! Plus de transformations possibles.");}
+    if(!S.hasRum){aide("Vous n'avez pas de rhum. Creusez la tache brillante sur la plage avec la pelle (Q).");}
   });
 
    
@@ -879,21 +616,21 @@ k.scene("game",()=>{
     m.textContent=S.mode==="pirate"?"Pirate":"Soldat Marin";
     m.style.color=S.mode==="pirate"?"#ffe066":"#88ccff";
 
-    document.getElementById("ii-shovel").className="ii"+(S.hasShovel?(S.shovelEq?" active":" owned"):"");
+    document.getElementById("ii-pelle").className="ii"+(S.hasShovel?(S.shovelEq?" active":" owned"):"");
     document.getElementById("ii-msg").className="ii clickable"+(S.hasMsg?" owned":"");
-    document.getElementById("ii-rum").className="ii"+(S.hasRum?" active":"");
-    document.getElementById("rum-count").textContent=S.hasRum?`(${S.rumUses}/${S.maxRum})`:"";
-    document.getElementById("ii-key").className="ii"+(S.hasKey?" owned":"");
-    document.getElementById("ii-treasure").className="ii"+(S.won?" active":"");
+    document.getElementById("ii-rhum").className="ii"+(S.hasRum?" active":"");
+    document.getElementById("rhum-décompte").textContent=S.hasRum?`(${S.rumUses}/${S.maxRum})`:"";
+    document.getElementById("ii-clef").className="ii"+(S.hasKey?" owned":"");
+    document.getElementById("ii-trésor").className="ii"+(S.won?" active":"");
   }
   let hTO=null;
-  function hint(msg){
-    document.getElementById("hint").textContent=msg;
+  function aide(msg){
+    document.getElementById("aide").textContent=msg;
     if(hTO)clearTimeout(hTO);
-    hTO=setTimeout(()=>{document.getElementById("hint").textContent="";},6500);
+    hTO=setTimeout(()=>{document.getElementById("aide").textContent="";},6500);
   }
 
-  hint("Bienvenue a Port Louis ! Ramassez le message (E), puis la pelle (E), puis creusez (Q pres de la tache brillante).");
+  aide("Bienvenue a Port Louis ! Ramassez le message (E), puis la pelle (E), puis creusez (Q près de la tache brillante).");
   updUI();
 });
 
